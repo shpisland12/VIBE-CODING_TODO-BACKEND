@@ -1,15 +1,5 @@
-// 환경변수 로드
-const dotenv = require('dotenv');
-const path = require('path');
-
-// .env 파일 경로 명시적으로 지정
-const result = dotenv.config({ path: path.join(__dirname, '.env') });
-
-if (result.error) {
-  console.error('dotenv 로드 실패:', result.error);
-} else {
-  console.log('dotenv 로드 성공');
-}
+// 환경변수 로드 (로컬 개발 환경용)
+require('dotenv').config();
 
 const express = require('express');
 const mongoose = require('mongoose');
@@ -25,31 +15,42 @@ app.use(cors());
 // JSON 파싱 미들웨어
 app.use(express.json());
 
-// MongoDB 연결
-console.log('환경변수 체크:');
-console.log('- MONGODB_URI 존재 여부:', !!process.env.MONGODB_URI);
-console.log('- MONGODB_URI 값:', process.env.MONGODB_URI);
+// 헬스 체크 엔드포인트
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'ok', 
+    message: 'Todo backend is running',
+    mongodb: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
+  });
+});
 
-const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/todo-app';
-console.log('사용할 MongoDB URI:', mongoURI);
+// MongoDB 연결
+const mongoURI = process.env.MONGODB_URI;
+
+if (!mongoURI) {
+  console.error('❌ 오류: MONGODB_URI 환경변수가 설정되지 않았습니다!');
+  console.error('Render.com 대시보드에서 Environment Variables를 설정해주세요.');
+  process.exit(1);
+}
+
+console.log('MongoDB 연결 시도 중...');
 
 mongoose
   .connect(mongoURI)
   .then(() => {
-    console.log('MongoDB 연결 성공');
+    console.log('✅ MongoDB 연결 성공');
+    
+    // MongoDB 연결 성공 후에만 서버 시작
+    app.listen(port, () => {
+      console.log(`🚀 Server is listening on port ${port}`);
+    });
   })
   .catch((err) => {
-    console.error('MongoDB 연결 실패:', err);
+    console.error('❌ MongoDB 연결 실패:', err.message);
+    console.error('MongoDB URI를 확인하고 데이터베이스가 접근 가능한지 확인해주세요.');
+    process.exit(1);
   });
-
-app.get('/', (req, res) => {
-  res.json({ status: 'ok', message: 'Todo backend is running' });
-});
 
 // Todo 라우터
 app.use('/api/todos', todoRoutes);
-
-app.listen(port, () => {
-  console.log(`Server is listening on http://localhost:${port}`);
-});
 
